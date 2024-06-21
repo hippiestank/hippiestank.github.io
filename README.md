@@ -1,3 +1,3 @@
 
 # ChubbySkull.Farm
-DECENTRALIZE OR DIE
+An experiment in decentralization
