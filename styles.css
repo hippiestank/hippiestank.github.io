@@ -36,6 +36,10 @@ a:link {
   color: #E6007A;
 }
 
+a:visited {
+  color: #FF4500;
+}
+
 a:hover {
   cursor: pointer;
 }
