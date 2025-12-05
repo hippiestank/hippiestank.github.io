@@ -1,1 +1,1517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Oregon Trail: On-Chain Edition</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root { --g: #33ff33; --gd: #1a8c1a; --bg: #0a0a0a; --r: #ff3333; --y: #ffaa33; }
+        body { background: var(--bg); color: var(--g); font: 18px/1.4 'VT323', monospace; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        h1 { text-align: center; font-size: 28px; margin-bottom: 10px; }
+        h2 { font-size: 22px; margin: 15px 0 10px; border-bottom: 1px dashed var(--gd); padding-bottom: 5px; }
+        .panel { border: 2px solid var(--gd); padding: 20px; margin: 20px 0; background: #111; }
+        .status-bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 8px; padding: 12px; border: 1px solid var(--gd); margin: 12px 0; }
+        .status-item { text-align: center; }
+        .status-label { color: var(--gd); font-size: 13px; }
+        .status-value { font-size: 18px; }
+        .narrative { white-space: pre-wrap; padding: 15px; border: 1px solid var(--gd); background: var(--bg); min-height: 100px; margin: 12px 0; }
+        button { font: 16px 'VT323', monospace; background: transparent; color: var(--g); border: 2px solid var(--g); padding: 8px 16px; cursor: pointer; margin: 4px; text-transform: uppercase; }
+        button:hover:not(:disabled) { background: var(--g); color: var(--bg); }
+        button:disabled { opacity: 0.3; cursor: not-allowed; }
+        button.primary { background: var(--g); color: var(--bg); }
+        input, select { font: 16px 'VT323', monospace; background: var(--bg); color: var(--g); border: 1px solid var(--gd); padding: 6px 10px; margin: 4px; }
+        input:focus, select:focus { border-color: var(--g); }
+        select option { background: var(--bg); }
+        .form-row { display: flex; align-items: center; gap: 8px; margin: 8px 0; flex-wrap: wrap; }
+        .form-row label { min-width: 130px; color: var(--gd); }
+        .form-row input { flex: 1; max-width: 120px; }
+        .actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 15px 0; }
+        .hidden { display: none !important; }
+        .error { color: var(--r); padding: 10px; border: 1px solid var(--r); margin: 10px 0; }
+        .loading { text-align: center; padding: 15px; color: var(--gd); }
+        .cursor { display: inline-block; width: 8px; height: 15px; background: var(--g); animation: b 0.5s infinite; }
+        @keyframes b { 0%,50%{opacity:1} 51%,100%{opacity:0} }
+        #shooting-game { text-align: center; padding: 25px; border: 3px solid var(--g); margin: 15px 0; background: var(--bg); }
+        #shooting-game.ready { border-color: var(--y); }
+        #shooting-word { font-size: 48px; letter-spacing: 4px; margin: 15px 0; }
+        #shooting-input { font-size: 32px; width: 150px; text-align: center; text-transform: uppercase; }
+        #shooting-timer, #shooting-result { font-size: 18px; margin-top: 10px; }
+        .shot-perfect { color: var(--g); } .shot-good { color: var(--gd); } .shot-miss { color: var(--r); }
+        .skill-hint { font-size: 13px; color: var(--gd); margin-top: 4px; }
+        .wallet-info { text-align: center; padding: 8px; border-bottom: 1px solid var(--gd); margin-bottom: 15px; font-size: 14px; }
+        .wallet-address { color: var(--gd); word-break: break-all; font-size: 12px; }
+        
+        .ascii-header {
+            font-size: 9px;
+            line-height: 1.1;
+            text-align: center;
+            margin-bottom: 15px;
+            color: var(--phosphor-dim);
+        }
+        
+        @media (max-width: 600px) {
+            body { font-size: 15px; padding: 10px; }
+            h1 { font-size: 22px; }
+            .form-row { flex-direction: column; align-items: stretch; }
+            .form-row label { min-width: auto; }
+            .form-row input { max-width: none; }
+            #shooting-word { font-size: 40px; }
+            #shooting-input { font-size: 28px; width: 130px; }
+            .ascii-header { font-size: 7px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <pre class="ascii-header">
+   ___  ____  _____ __________  _   __   ______ ____  ___    ______
+  / __ \/ __ \/ ___// ____/ __ \/ | / /  /_  __// __ \/   |  /  _/ /
+ / / / / /_/ / __/ / / __/ / / /  |/ /    / /  / /_/ / /| |  / // / 
+/ /_/ / _, _/ /___/ /_/ / /_/ / /|  /    / /  / _, _/ ___ |_/ // /__
+\____/_/ |_/_____/\____/\____/_/ |_/    /_/  /_/ |_/_/  |_/___/____/
+                        ═══ ON-CHAIN EDITION ═══
+        </pre>
+        
+        <!-- Loading Screen -->
+        <div id="screen-loading" class="panel">
+            <h2>》 INITIALIZING</h2>
+            <div class="loading">CONNECTING TO BLOCKCHAIN</div>
+            <div id="init-status" style="margin-top: 15px; font-size: 14px;"></div>
+            <div id="init-error" class="error hidden"></div>
+        </div>
+        
+        <!-- Connect Wallet Screen -->
+        <div id="screen-connect" class="panel hidden">
+            <h2>》 CONNECT WALLET</h2>
+            <p style="margin: 15px 0; color: var(--phosphor-dim);">
+                Connect your Polkadot wallet to begin your journey.
+            </p>
+            <div id="wallet-list" class="actions"></div>
+            <div id="connect-error" class="error hidden"></div>
+        </div>
+        
+        <!-- Main Menu Screen -->
+        <div id="screen-menu" class="panel hidden">
+            <div class="wallet-info">
+                <div>CONNECTED: <span id="wallet-name">--</span></div>
+                <div class="wallet-address" id="wallet-address">--</div>
+            </div>
+            
+            <h2>》 MAIN MENU</h2>
+            <div class="actions">
+                <button id="btn-new-game">NEW GAME</button>
+                <button id="btn-continue-game" disabled>CONTINUE</button>
+                <button id="btn-delete-game" disabled>DELETE GAME</button>
+                <button id="btn-disconnect">DISCONNECT</button>
+            </div>
+            <div id="menu-error" class="error hidden"></div>
+        </div>
+        
+        <!-- Setup Screen -->
+        <div id="screen-setup" class="panel hidden">
+            <h2>》 PREPARE FOR YOUR JOURNEY</h2>
+            
+            <p style="margin: 12px 0; font-size: 14px;">
+                SIMULATES A TRIP OVER THE OREGON TRAIL FROM INDEPENDENCE, MISSOURI
+                TO OREGON CITY, OREGON IN 1847. YOUR FAMILY WILL COVER 2040 MILES
+                IN 5-6 MONTHS --- IF YOU MAKE IT ALIVE.
+            </p>
+            
+            <p style="margin: 12px 0; color: var(--phosphor-dim); font-size: 14px;">
+                YOU HAVE $700 TO SPEND ON SUPPLIES.
+            </p>
+            
+            <div class="form-row">
+                <label>FAMILY NAME:</label>
+                <input type="text" id="input-name" maxlength="32" value="Smith">
+            </div>
+            
+            <div class="form-row">
+                <label>SHOOTING SKILL:</label>
+                <select id="input-skill">
+                    <option value="1">ACE MARKSMAN (must type fast!)</option>
+                    <option value="2">GOOD SHOT</option>
+                    <option value="3" selected>FAIR TO MIDDLIN'</option>
+                    <option value="4">NEED MORE PRACTICE</option>
+                    <option value="5">SHAKY KNEES (forgiving)</option>
+                </select>
+            </div>
+            
+            <h3>SUPPLIES</h3>
+            
+            <div class="form-row">
+                <label>OXEN ($200-$300):</label>
+                <input type="number" id="input-oxen" min="200" max="300" value="250">
+            </div>
+            <div class="form-row">
+                <label>FOOD:</label>
+                <input type="number" id="input-food" min="0" value="100">
+            </div>
+            <div class="form-row">
+                <label>AMMUNITION:</label>
+                <input type="number" id="input-ammo" min="0" value="100">
+                <span class="skill-hint">($1 = 50 bullets)</span>
+            </div>
+            <div class="form-row">
+                <label>CLOTHING:</label>
+                <input type="number" id="input-clothing" min="0" value="100">
+            </div>
+            <div class="form-row">
+                <label>MISC SUPPLIES:</label>
+                <input type="number" id="input-misc" min="0" value="100">
+            </div>
+            
+            <div class="status-bar">
+                <div class="status-item">
+                    <div class="status-label">SPENT</div>
+                    <div class="status-value" id="total-spent">$650</div>
+                </div>
+                <div class="status-item">
+                    <div class="status-label">REMAINING</div>
+                    <div class="status-value" id="cash-remaining">$50</div>
+                </div>
+            </div>
+            
+            <div id="setup-error" class="error hidden"></div>
+            
+            <div class="actions">
+                <button id="btn-start-journey" class="primary">START JOURNEY</button>
+                <button id="btn-back-menu">BACK</button>
+            </div>
+        </div>
+        
+        <!-- Game Screen -->
+        <div id="screen-game" class="panel hidden">
+            <div class="wallet-info" id="game-date">LOADING...</div>
+            
+            <div class="status-bar">
+                <div class="status-item">
+                    <div class="status-label">MILES</div>
+                    <div class="status-value" id="stat-mileage">0</div>
+                </div>
+                <div class="status-item">
+                    <div class="status-label">FOOD</div>
+                    <div class="status-value" id="stat-food">0</div>
+                </div>
+                <div class="status-item">
+                    <div class="status-label">BULLETS</div>
+                    <div class="status-value" id="stat-bullets">0</div>
+                </div>
+                <div class="status-item">
+                    <div class="status-label">CLOTHES</div>
+                    <div class="status-value" id="stat-clothing">0</div>
+                </div>
+                <div class="status-item">
+                    <div class="status-label">SUPPLIES</div>
+                    <div class="status-value" id="stat-supplies">0</div>
+                </div>
+                <div class="status-item">
+                    <div class="status-label">CASH</div>
+                    <div class="status-value" id="stat-cash">$0</div>
+                </div>
+            </div>
+            
+            <div id="narrative" class="narrative">Loading...<span class="cursor"></span></div>
+            
+            <!-- Turn Actions -->
+            <div id="turn-actions" class="hidden">
+                <div class="form-row">
+                    <label>EATING:</label>
+                    <select id="input-eating">
+                        <option value="1">POORLY (13 food)</option>
+                        <option value="2" selected>MODERATELY (18 food)</option>
+                        <option value="3">WELL (23 food)</option>
+                    </select>
+                </div>
+                
+                <div class="actions">
+                    <button id="btn-hunt">HUNT</button>
+                    <button id="btn-fort" disabled>FORT</button>
+                    <button id="btn-continue" class="primary">CONTINUE</button>
+                </div>
+            </div>
+            
+            <!-- Shooting Mini-Game -->
+            <div id="shooting-game" class="hidden">
+                <div id="shooting-prompt">GET READY...</div>
+                <div id="shooting-word"></div>
+                <input type="text" id="shooting-input" maxlength="4" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+                <div id="shooting-timer"></div>
+                <div id="shooting-result"></div>
+            </div>
+            
+            <!-- Rider Actions -->
+            <div id="rider-actions" class="hidden">
+                <h3>RIDERS AHEAD - CHOOSE TACTIC</h3>
+                <div class="actions">
+                    <button class="rider-btn" data-response="run">RUN</button>
+                    <button class="rider-btn" data-response="attack">ATTACK</button>
+                    <button class="rider-btn" data-response="continue">CONTINUE</button>
+                    <button class="rider-btn" data-response="circle">CIRCLE WAGONS</button>
+                </div>
+            </div>
+            
+            <!-- Game Over -->
+            <div id="game-over" class="hidden">
+                <div class="actions">
+                    <button id="btn-play-again">PLAY AGAIN</button>
+                    <button id="btn-to-menu">MAIN MENU</button>
+                </div>
+            </div>
+            
+            <div id="game-error" class="error hidden"></div>
+            <div id="game-loading" class="loading hidden">PROCESSING TX</div>
+        </div>
+        
+        <!-- Fort Screen -->
+        <div id="screen-fort" class="panel hidden">
+            <h2>》 FORT TRADING POST</h2>
+            <p class="skill-hint">ITEMS COST MORE HERE (2/3 VALUE)</p>
+            
+            <div class="status-bar">
+                <div class="status-item">
+                    <div class="status-label">YOUR CASH</div>
+                    <div class="status-value" id="fort-cash">$0</div>
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <label>FOOD:</label>
+                <input type="number" id="fort-food" min="0" value="0">
+            </div>
+            <div class="form-row">
+                <label>AMMUNITION:</label>
+                <input type="number" id="fort-ammo" min="0" value="0">
+            </div>
+            <div class="form-row">
+                <label>CLOTHING:</label>
+                <input type="number" id="fort-clothing" min="0" value="0">
+            </div>
+            <div class="form-row">
+                <label>MISC SUPPLIES:</label>
+                <input type="number" id="fort-misc" min="0" value="0">
+            </div>
+            
+            <div id="fort-error" class="error hidden"></div>
+            
+            <div class="actions">
+                <button id="btn-fort-buy" class="primary">BUY & CONTINUE</button>
+                <button id="btn-fort-cancel">CANCEL</button>
+            </div>
+        </div>
+    </div>
 
+    <script type="module">
+        // CONFIG
+        const CONFIG = {
+            CONTRACT: '0x327B6E9e0fAE21534AE2bD048714e45739887dC2',
+            RPC: 'wss://testnet-passet-hub.polkadot.io',
+            SHOOTING_WORDS: ['BANG', 'BLAM', 'POW', 'WHAM'],
+            TIMING: { // ms thresholds for reaction score 1-9
+                800: 1, 1200: 2, 1600: 3, 2000: 4,
+                2500: 5, 3000: 6, 3500: 7, 4000: 8
+            }
+        };
+        
+        const SKILLS = {
+            1: { name: 'ACE MARKSMAN', bonus: 0 },
+            2: { name: 'GOOD SHOT', bonus: 1 },
+            3: { name: "FAIR TO MIDDLIN'", bonus: 2 },
+            4: { name: 'NEED MORE PRACTICE', bonus: 3 },
+            5: { name: 'SHAKY KNEES', bonus: 4 },
+        };
+        
+        const DATES = [
+            'MARCH 29', 'APRIL 12', 'APRIL 26', 'MAY 10', 'MAY 24',
+            'JUNE 7', 'JUNE 21', 'JULY 5', 'JULY 19', 'AUGUST 2',
+            'AUGUST 16', 'AUGUST 31', 'SEPTEMBER 13', 'SEPTEMBER 27',
+            'OCTOBER 11', 'OCTOBER 25', 'NOVEMBER 8', 'NOVEMBER 22',
+            'DECEMBER 6', 'DECEMBER 20'
+        ];
+        
+        // STATE
+        let state = {
+            api: null,
+            contract: null,
+            signer: null,
+            address: null,
+            evmAddress: null,
+            game: null,
+            pendingAction: null,
+            pendingRiderResponse: null,
+            pendingCombatType: null,
+            combatInProgress: false,
+            shootingStartTime: null,
+            shootingWord: null,
+        };
+        
+        // UI
+        const $ = id => document.getElementById(id);
+        const show = id => $(id)?.classList.remove('hidden');
+        const hide = id => $(id)?.classList.add('hidden');
+        const setText = (id, text) => { if ($(id)) $(id).textContent = text; };
+        const setHtml = (id, html) => { if ($(id)) $(id).innerHTML = html; };
+        
+        function showScreen(name) {
+            ['loading', 'connect', 'menu', 'setup', 'game', 'fort']
+                .forEach(s => hide('screen-' + s));
+            show('screen-' + name);
+        }
+        
+        function showError(id, msg) {
+            const el = $(id);
+            if (el) { el.textContent = msg; el.classList.remove('hidden'); }
+        }
+        
+        function hideError(id) {
+            const el = $(id);
+            if (el) el.classList.add('hidden');
+        }
+        
+        function setNarrative(text) {
+            setHtml('narrative', text + '<span class="cursor"></span>');
+        }
+        
+        // INIT API
+        async function initApi() {
+            setText('init-status', 'Loading...');
+            
+            try {
+                // Import @polkadot/api
+                const { ApiPromise, WsProvider } = await import('https://esm.sh/@polkadot/api@15.8.1');
+                
+                setText('init-status', 'Connecting to node...');
+                
+                // Connect to node with auto-reconnect
+                const provider = new WsProvider(CONFIG.RPC);
+                
+                provider.on('disconnected', () => {
+                    console.warn('⚠️ WebSocket disconnected');
+                    showError('game-error', 'CONNECTION LOST - REFRESH PAGE TO CONTINUE');
+                    // Disable all buttons to prevent stuck state
+                    document.querySelectorAll('button').forEach(b => b.disabled = true);
+                });
+                
+                provider.on('error', (err) => {
+                    console.error('❌ WebSocket error:', err);
+                });
+                
+                state.api = await ApiPromise.create({ provider });
+                
+                setText('init-status', 'Connected! Checking for wallet...');
+                
+                // Check for wallet extensions
+                await checkWallets();
+                
+            } catch (err) {
+                console.error('❌ Init error:', err);
+                console.error('Stack:', err.stack);
+                showError('init-error', 'Failed to initialize: ' + err.message);
+            }
+        }
+        
+        // WALLET
+        async function checkWallets() {
+            // Give extensions time to inject
+            await new Promise(r => setTimeout(r, 500));
+            
+            if (!window.injectedWeb3 || Object.keys(window.injectedWeb3).length === 0) {
+                showError('init-error', 'No wallet found. Install Polkadot.js, Talisman, or SubWallet.');
+                showScreen('connect');
+                setHtml('wallet-list', '<p style="color: var(--phosphor-dim);">No wallets detected. Please install a Polkadot wallet extension.</p>');
+                return;
+            }
+            
+            // Build wallet buttons
+            const wallets = Object.keys(window.injectedWeb3);
+            let html = '';
+            for (const name of wallets) {
+                html += `<button class="wallet-btn" data-wallet="${name}">${name.toUpperCase()}</button>`;
+            }
+            setHtml('wallet-list', html);
+            
+            // Add click handlers
+            document.querySelectorAll('.wallet-btn').forEach(btn => {
+                btn.addEventListener('click', () => connectWallet(btn.dataset.wallet));
+            });
+            
+            showScreen('connect');
+        }
+        
+        async function connectWallet(walletName) {
+            hideError('connect-error');
+            setText('init-status', 'Connecting wallet...');
+            
+            try {
+                const wallet = window.injectedWeb3[walletName];
+                const injector = await wallet.enable('Oregon Trail');
+                const accounts = await injector.accounts.get();
+                
+                if (accounts.length === 0) {
+                    throw new Error('No accounts found in wallet');
+                }
+                
+                // Use first account
+                const account = accounts[0];
+                state.address = account.address;
+                state.signer = injector.signer;
+                
+                // Check if account is mapped in pallet-revive
+                setText('init-status', 'Checking account...');
+                try {
+                    const evmAddressResult = await state.api.query.revive.evmAddress(state.address);
+                    
+                    if (evmAddressResult.isNone) {
+                        setText('init-status', 'Mapping account (sign tx)...');
+                        
+                        await new Promise((resolve, reject) => {
+                            state.api.tx.revive
+                                .mapAccount()
+                                .signAndSend(state.address, { signer: state.signer }, (result) => {
+                                    if (result.status.isInBlock || result.status.isFinalized) {
+                                        resolve();
+                                    }
+                                    if (result.isError) {
+                                        reject(new Error('Map account failed'));
+                                    }
+                                });
+                        });
+                        
+                        // Re-query to get the EVM address
+                        const newEvmResult = await state.api.query.revive.evmAddress(state.address);
+                        state.evmAddress = newEvmResult.toHuman();
+                    } else {
+                        state.evmAddress = evmAddressResult.toHuman();
+                    }
+                } catch (mapErr) {
+                    console.warn('Account mapping check failed:', mapErr.message);
+                }
+                
+                setText('wallet-name', account.name || walletName);
+                setText('wallet-address', account.address);
+                
+                // Check for existing game
+                await checkExistingGame();
+                
+                showScreen('menu');
+                
+            } catch (err) {
+                console.error('❌ Wallet error:', err);
+                showError('connect-error', err.message);
+            }
+        }
+        
+        function disconnect() {
+            state.address = null;
+            state.signer = null;
+            state.game = null;
+            showScreen('connect');
+        }
+        
+        // CONTRACT QUERIES
+        async function queryContract(selector) {
+            // Get caller address for query
+            let callerBytes;
+            if (state.evmAddress) {
+                // Use the mapped EVM H160 address (what the contract sees)
+                const evmHex = state.evmAddress.replace('0x', '');
+                callerBytes = new Uint8Array(20);
+                for (let i = 0; i < 40; i += 2) {
+                    callerBytes[i/2] = parseInt(evmHex.slice(i, i+2), 16);
+                }
+            } else {
+                // Fallback to AccountId32
+                const { decodeAddress } = await import('https://esm.sh/@polkadot/util-crypto@13.4.2');
+                callerBytes = decodeAddress(state.address);
+            }
+            
+            // Contract address bytes (20 bytes)
+            const contractHex = CONFIG.CONTRACT.replace('0x', '');
+            const contractBytes = new Uint8Array(20);
+            for (let i = 0; i < 40; i += 2) {
+                contractBytes[i/2] = parseInt(contractHex.slice(i, i+2), 16);
+            }
+            
+            // Build ReviveApi_call params (SCALE encoded)
+            // For pallet-revive: origin is H160 (20 bytes), not AccountId32
+            const params = new Uint8Array([
+                ...callerBytes,                    // origin: H160 (20 bytes)
+                ...contractBytes,                  // dest: H160 (20 bytes)
+                ...new Uint8Array(16),             // value: u128 = 0
+                0,                                 // gas_limit: None
+                0,                                 // storage_deposit_limit: None
+                (selector.length << 2),            // input_data length (compact)
+                ...selector                        // input_data
+            ]);
+            
+            const paramsHex = '0x' + Array.from(params).map(b => b.toString(16).padStart(2, '0')).join('');
+            
+            try {
+                // Small delay for state propagation
+                await new Promise(r => setTimeout(r, 300));
+                
+                // Query latest state
+                const result = await state.api.rpc.state.call('ReviveApi_call', paramsHex);
+                return result.toU8a();
+            } catch (err) {
+                console.error('Query error:', err);
+                return null;
+            }
+        }
+        
+        async function checkExistingGame() {
+            try {
+                // Try to load game state directly - if we find a player name, there's an active game
+                const result = await queryContract(SELECTORS.getGame);
+                
+                // Look for player name (3+ consecutive ASCII letters) to detect existing game
+                let hasGame = false;
+                for (let i = 0; i < result.length - 3; i++) {
+                    if (result[i] >= 65 && result[i] <= 122 &&
+                        result[i+1] >= 65 && result[i+1] <= 122 &&
+                        result[i+2] >= 65 && result[i+2] <= 122) {
+                        hasGame = true;
+                        break;
+                    }
+                }
+                
+                if (hasGame) {
+                    await loadGameState();
+                    // Change button text if game is dead
+                    if (state.game?.isDead) {
+                        $('btn-continue-game').textContent = 'VIEW FINAL STATE';
+                    } else {
+                        $('btn-continue-game').textContent = 'CONTINUE';
+                    }
+                }
+                
+                $('btn-continue-game').disabled = !hasGame;
+                $('btn-delete-game').disabled = !hasGame;
+            } catch (err) {
+                console.error('Check game error:', err);
+                $('btn-continue-game').disabled = true;
+            }
+        }
+        
+        async function loadGameState() {
+            try {
+                const result = await queryContract(SELECTORS.getGame);
+                
+                // Check if game exists - Option<GameState> returns 0x00 for None
+                // or starts with valid data for Some
+                if (!result || result.length < 20) {
+                    state.game = null;
+                    return;
+                }
+                
+                if (result) {
+                    
+                    // Find player name in the response (search for ASCII letters)
+                    let nameStart = -1;
+                    for (let i = 1; i < result.length - 5; i++) {
+                        // Look for compact length byte followed by ASCII uppercase letter
+                        const lenByte = result[i-1];
+                        const possibleLen = lenByte >> 2;
+                        if (possibleLen >= 3 && possibleLen <= 20 && 
+                            result[i] >= 65 && result[i] <= 90) { // A-Z
+                            // Verify it's followed by more letters
+                            let allLetters = true;
+                            for (let j = 0; j < Math.min(possibleLen, 5); j++) {
+                                const c = result[i + j];
+                                if (!((c >= 65 && c <= 90) || (c >= 97 && c <= 122))) {
+                                    allLetters = false;
+                                    break;
+                                }
+                            }
+                            if (allLetters) {
+                                nameStart = i;
+                                break;
+                            }
+                        }
+                    }
+                    
+                    if (nameStart === -1) {
+                        // No valid game data found
+                        state.game = null;
+                        return;
+                    }
+                    
+                    const nameLen = result[nameStart - 1] >> 2;
+                    
+                    const nameBytes = result.slice(nameStart, nameStart + nameLen);
+                    const playerName = new TextDecoder().decode(nameBytes);
+                    
+                    let offset = nameStart + nameLen;
+                    
+                    // Helper to read u32 little-endian
+                    const readU32 = () => {
+                        const val = result[offset] | (result[offset+1] << 8) | (result[offset+2] << 16) | (result[offset+3] << 24);
+                        offset += 4;
+                        return val >>> 0;
+                    };
+                    
+                    // GameState fields (from contract lib.rs):
+                    // name: String (already read)
+                    // food: u32
+                    // bullets: u32
+                    // clothing: u32
+                    // misc_supplies: u32
+                    // cash: u32
+                    // mileage: u32
+                    // turn: u8 (NOT u32!)
+                    // oxen_quality: u32
+                    // shooting_skill: ShootingSkill (u8)
+                    // is_injured: bool
+                    // is_ill: bool
+                    // south_pass_cleared: bool
+                    // blue_mountains_cleared: bool
+                    // fort_available: bool
+                    
+                    const food = readU32();
+                    const bullets = readU32();
+                    const clothing = readU32();
+                    const miscSupplies = readU32();
+                    const cash = readU32();
+                    const mileage = readU32();
+                    const turn = result[offset++];  // u8!
+                    const oxen = readU32();
+                    const shootingSkill = result[offset++];
+                    const isInjured = result[offset++] === 1;
+                    const isIll = result[offset++] === 1;
+                    const southPassCleared = result[offset++] === 1;
+                    const blueMountainsCleared = result[offset++] === 1;
+                    const fortAvailable = result[offset++] === 1;
+                    
+                    // pending_combat: Option<CombatEvent>
+                    // CombatEvent enum order: Bandits=0, WildAnimals=1, Riders{appear_hostile}=2
+                    let pendingCombat = null;
+                    const hasCombat = result[offset++];
+                    if (hasCombat === 1) {
+                        const combatType = result[offset++];
+                        if (combatType === 0) {
+                            pendingCombat = { type: 'Bandits' };
+                        } else if (combatType === 1) {
+                            pendingCombat = { type: 'WildAnimals' };
+                        } else if (combatType === 2) {
+                            const appearHostile = result[offset++] === 1;
+                            pendingCombat = { type: 'Riders', appearHostile };
+                        }
+                    }
+                    
+                    // is_dead: bool
+                    const isDead = result[offset++] === 1;
+                    
+                    state.game = {
+                        playerName,
+                        turn,
+                        mileage,
+                        cash,
+                        food,
+                        bullets,
+                        clothing,
+                        miscSupplies,
+                        oxen,
+                        shootingSkill,
+                        isInjured,
+                        isIll,
+                        fortAvailable,
+                        pendingCombat,
+                        isDead
+                    };
+                    
+                    updateGameDisplay();
+                }
+            } catch (err) {
+                console.error('Load game error:', err);
+            }
+        }
+        
+        // CONTRACT TX
+        // Encode SCALE compact u32
+        function encodeCompactU32(n) {
+            if (n < 64) return [n << 2];
+            if (n < 16384) return [(n << 2) | 1, n >> 6];
+            if (n < 1073741824) return [(n << 2) | 2, n >> 6, n >> 14, n >> 22];
+            return [3, n, n >> 8, n >> 16, n >> 24];
+        }
+        
+        // Encode string (compact length + UTF8 bytes)
+        function encodeString(str) {
+            const utf8 = new TextEncoder().encode(str);
+            return [...encodeCompactU32(utf8.length), ...utf8];
+        }
+        
+        // Encode u32 as little-endian 4 bytes
+        function encodeU32(n) {
+            return [n & 0xff, (n >> 8) & 0xff, (n >> 16) & 0xff, (n >> 24) & 0xff];
+        }
+        
+        // Build call data: selector + encoded args
+        function buildCallData(selector, ...encodedArgs) {
+            const data = [...selector];
+            for (const arg of encodedArgs) {
+                data.push(...arg);
+            }
+            return new Uint8Array(data);
+        }
+        
+        // Contract selectors (from metadata)
+        const SELECTORS = {
+            startGame: [0x0d, 0xad, 0x73, 0x1d],
+            takeTurn: [0x3e, 0x9c, 0x77, 0x4a],
+            respondToCombat: [0x11, 0x0c, 0xe2, 0x67],
+            deleteGame: [0x36, 0x0c, 0x54, 0x25],
+            getGame: [0xfe, 0xc7, 0x05, 0x1e],
+            hasActiveGame: [0xb8, 0x99, 0x65, 0x7a],
+        };
+        
+        // Submit a revive.call transaction (using @polkadot/api)
+        async function submitReviveCall(callData, description = 'contract call') {
+            const callDataHex = '0x' + Array.from(callData).map(b => b.toString(16).padStart(2, '0')).join('');
+            const contractAddr = CONFIG.CONTRACT.startsWith('0x') ? CONFIG.CONTRACT : '0x' + CONFIG.CONTRACT;
+            
+            if (!state.api.tx?.revive?.call) {
+                throw new Error('Revive pallet not found');
+            }
+            
+            const tx = state.api.tx.revive.call(
+                contractAddr,
+                0,
+                { refTime: '500000000000', proofSize: '500000' },
+                '100000000000000',
+                callDataHex
+            );
+            
+            setText('game-loading', 'SIGN IN WALLET...');
+            
+            return new Promise((resolve, reject) => {
+                let unsub;
+                let resolved = false;
+                
+                tx.signAndSend(state.address, { signer: state.signer }, (result) => {
+                    if (result.status.isInBlock) {
+                        const blockHash = result.status.asInBlock.toHex();
+                        setText('game-loading', 'CONFIRMED!');
+                        
+                        // Check for errors in events
+                        const failed = result.events.find(({ event }) => 
+                            state.api.events.system.ExtrinsicFailed.is(event)
+                        );
+                        
+                        if (failed) {
+                            const [dispatchError] = failed.event.data;
+                            let errorMsg = 'Transaction failed';
+                            
+                            if (dispatchError.isModule) {
+                                const decoded = state.api.registry.findMetaError(dispatchError.asModule);
+                                errorMsg = `${decoded.section}.${decoded.name}: ${decoded.docs.join(' ')}`;
+                            }
+                            
+                            console.error('❌ Dispatch error:', errorMsg);
+                            if (!resolved) {
+                                resolved = true;
+                                if (unsub) unsub();
+                                reject(new Error(errorMsg));
+                            }
+                            return;
+                        }
+                        
+                        // Check for revive.ContractReverted
+                        const reverted = result.events.find(({ event }) => 
+                            event.section === 'revive' && event.method === 'ContractReverted'
+                        );
+                        if (reverted) {
+                            console.warn('⚠️ Contract reverted!', reverted.event.data.toHuman());
+                        }
+                        
+                        // Extract narrative from ContractEmitted events
+                        // Narrative event: [20-byte addr][String message]
+                        // GameOver event: [20-byte addr][bool victory][String message][u32 score]
+                        let narrative = null;
+                        const emittedEvents = result.events.filter(({ event }) => 
+                            event.section === 'revive' && event.method === 'ContractEmitted'
+                        );
+                        
+                        // Helper to decode compact string at position
+                        const decodeString = (hex, startPos) => {
+                            let pos = startPos;
+                            const firstByte = parseInt(hex.slice(pos, pos + 2), 16);
+                            let strLen = 0;
+                            const mode = firstByte & 0b11;
+                            
+                            if (mode === 0) {
+                                strLen = firstByte >> 2;
+                                pos += 2;
+                            } else if (mode === 1) {
+                                const secondByte = parseInt(hex.slice(pos + 2, pos + 4), 16);
+                                strLen = ((secondByte << 8) | firstByte) >> 2;
+                                pos += 4;
+                            } else if (mode === 2) {
+                                const b1 = parseInt(hex.slice(pos, pos + 2), 16);
+                                const b2 = parseInt(hex.slice(pos + 2, pos + 4), 16);
+                                const b3 = parseInt(hex.slice(pos + 4, pos + 6), 16);
+                                const b4 = parseInt(hex.slice(pos + 6, pos + 8), 16);
+                                strLen = ((b4 << 24) | (b3 << 16) | (b2 << 8) | b1) >> 2;
+                                pos += 8;
+                            }
+                            
+                            if (strLen > 0 && strLen < 5000) {
+                                const textHex = hex.slice(pos, pos + strLen * 2);
+                                const bytes = new Uint8Array(strLen);
+                                for (let i = 0; i < strLen; i++) {
+                                    bytes[i] = parseInt(textHex.slice(i * 2, i * 2 + 2), 16);
+                                }
+                                return new TextDecoder().decode(bytes);
+                            }
+                            return null;
+                        };
+                        
+                        for (const { event } of emittedEvents) {
+                            try {
+                                const data = event.data.toHuman();
+                                if (data.data) {
+                                    const hex = data.data.replace('0x', '');
+                                    
+                                    // Try Narrative format: [20-byte addr][String]
+                                    let msg = decodeString(hex, 40);
+                                    
+                                    // If that didn't work or looks wrong, try GameOver format: [20-byte addr][bool][String]
+                                    if (!msg || msg.length < 5) {
+                                        msg = decodeString(hex, 42); // Skip addr + 1-byte bool
+                                    }
+                                    
+                                    if (msg && msg.length > 5) {
+                                        narrative = msg;
+                                    }
+                                }
+                            } catch (e) { /* ignore decode errors */ }
+                        }
+                        
+                        // Success!
+                        if (!resolved) {
+                            resolved = true;
+                            if (unsub) unsub();
+                            resolve({ blockHash, narrative });
+                        }
+                    }
+                    
+                    if (result.status.isFinalized) {
+                        setText('game-loading', 'CONFIRMED!');
+                        if (!resolved) {
+                            resolved = true;
+                            if (unsub) unsub();
+                            resolve({ blockHash: result.status.asFinalized.toHex() });
+                        }
+                    }
+                    
+                    if (result.isError) {
+                        console.error('❌ TX error:', result.toHuman());
+                        if (!resolved) {
+                            resolved = true;
+                            if (unsub) unsub();
+                            reject(new Error('Transaction error'));
+                        }
+                    }
+                }).then(u => {
+                    unsub = u;
+                }).catch(err => {
+                    console.error('❌ signAndSend error:', err);
+                    if (!resolved) {
+                        resolved = true;
+                        reject(err);
+                    }
+                });
+                
+                // Timeout after 60 seconds
+                setTimeout(() => {
+                    if (!resolved) {
+                        console.warn('⚠️ Transaction timeout after 60s');
+                        resolved = true;
+                        if (unsub) unsub();
+                        reject(new Error('Transaction timeout'));
+                    }
+                }, 60000);
+            });
+        }
+        
+        async function startGame() {
+            hideError('setup-error');
+            
+            const name = $('input-name').value.trim();
+            const skill = parseInt($('input-skill').value);
+            const oxen = parseInt($('input-oxen').value);
+            const food = parseInt($('input-food').value);
+            const ammo = parseInt($('input-ammo').value);
+            const clothing = parseInt($('input-clothing').value);
+            const misc = parseInt($('input-misc').value);
+            
+            
+            // Validation
+            if (!name) { showError('setup-error', 'Enter a family name'); return; }
+            if (oxen < 200 || oxen > 300) { showError('setup-error', 'Oxen must be $200-$300'); return; }
+            
+            const total = oxen + food + ammo + clothing + misc;
+            if (total > 700) { showError('setup-error', 'Overspent! You have $700'); return; }
+            
+            
+            try {
+                show('game-loading');
+                setText('game-loading', 'BUILDING TX...');
+                
+                // Build call data manually: selector + args
+                // start_game(name: String, shooting_skill: u8, oxen: u32, food: u32, 
+                //            ammunition: u32, clothing: u32, misc_supplies: u32)
+                const callData = buildCallData(
+                    SELECTORS.startGame,
+                    encodeString(name),
+                    [skill],                    // u8
+                    encodeU32(oxen),
+                    encodeU32(food),
+                    encodeU32(ammo),
+                    encodeU32(clothing),
+                    encodeU32(misc)
+                );
+                
+                
+                // Submit via revive.call
+                setText('game-loading', 'PLEASE WAIT...');
+                await submitReviveCall(callData, 'startGame');
+                
+                // Load the game state (query waits for next block)
+                await loadGameState();
+                
+                setNarrative(`MONDAY ${DATES[0]} 1847\n\nThe ${name} family sets out from Independence, Missouri.\n\nGOOD LUCK!!!`);
+                showScreen('game');
+                showTurnActions();
+                
+            } catch (err) {
+                console.error('❌ Start game error:', err);
+                
+                // If game already exists, offer to continue or delete
+                if (err.message && err.message.includes('ContractReverted')) {
+                    await loadGameState();
+                    if (state.game) {
+                        showError('setup-error', 'YOU ALREADY HAVE A GAME IN PROGRESS. USE CONTINUE OR DELETE GAME.');
+                    } else {
+                        showError('setup-error', 'Transaction failed - try again');
+                    }
+                } else {
+                    showError('setup-error', 'Transaction failed: ' + err.message);
+                }
+            } finally {
+                hide('game-loading');
+            }
+        }
+        
+        async function takeTurn(action, reactionScore = null, fortPurchase = null) {
+            hideError('game-error');
+            show('game-loading');
+            
+            try {
+                const eating = parseInt($('input-eating').value);
+                
+                // Build action enum (SCALE encoding)
+                // Action: StopAtFort=0, Hunt{reaction_score}=1, Continue=2
+                let actionBytes;
+                if (action === 'continue') {
+                    actionBytes = [2]; // Continue variant
+                } else if (action === 'hunt') {
+                    actionBytes = [1, reactionScore]; // Hunt variant + u8
+                } else if (action === 'fort') {
+                    actionBytes = [0]; // StopAtFort variant
+                }
+                
+                // Build fort_purchase Option<FortPurchase>
+                // Option: None=0, Some(T)=1
+                let fortBytes;
+                if (fortPurchase) {
+                    fortBytes = [
+                        1, // Some
+                        ...encodeU32(fortPurchase.food),
+                        ...encodeU32(fortPurchase.ammunition),
+                        ...encodeU32(fortPurchase.clothing),
+                        ...encodeU32(fortPurchase.miscSupplies)
+                    ];
+                } else {
+                    fortBytes = [0]; // None
+                }
+                
+                // take_turn(action: Action, eating_level: u8, fort_purchase: Option<FortPurchase>)
+                const callData = buildCallData(
+                    SELECTORS.takeTurn,
+                    actionBytes,
+                    [eating],           // u8
+                    fortBytes
+                );
+                
+                
+                setText('game-loading', 'PLEASE WAIT...');
+                const result = await submitReviveCall(callData, 'takeTurn');
+                
+                // Display narrative from contract event
+                if (result.narrative) {
+                    setNarrative(result.narrative);
+                }
+                
+                // Reload game state
+                await loadGameState();
+                await handleTurnResult();
+                
+            } catch (err) {
+                console.error('Turn error:', err);
+                
+                // If contract reverted, refresh state and show actions
+                if (err.message && err.message.includes('ContractReverted')) {
+                    await loadGameState();
+                    if (state.game) {
+                        showTurnActions();
+                    } else {
+                        showGameOver();
+                    }
+                } else {
+                    showError('game-error', 'Transaction failed: ' + err.message);
+                    showTurnActions();
+                }
+            } finally {
+                hide('game-loading');
+            }
+        }
+        
+        async function respondToCombat(riderResponse = null, reactionScore = null) {
+            hideError('game-error');
+            show('game-loading');
+            setText('game-loading', 'PLEASE WAIT...');
+            
+            try {
+                // Build rider_response Option<RiderResponse>
+                // RiderResponse: Run=0, Attack{reaction_score}=1, ContinuePast=2, CircleWagons{reaction_score}=3
+                let responseBytes;
+                if (riderResponse === null) {
+                    responseBytes = [0]; // None
+                } else if (riderResponse.Run !== undefined) {
+                    responseBytes = [1, 0]; // Some + Run variant
+                } else if (riderResponse.Attack !== undefined) {
+                    responseBytes = [1, 1, riderResponse.Attack.reactionScore]; // Some + Attack variant + u8
+                } else if (riderResponse.ContinuePast !== undefined) {
+                    responseBytes = [1, 2]; // Some + ContinuePast variant
+                } else if (riderResponse.CircleWagons !== undefined) {
+                    responseBytes = [1, 3, riderResponse.CircleWagons.reactionScore]; // Some + CircleWagons + u8
+                }
+                
+                // Build reaction_score Option<u8>
+                let scoreBytes;
+                if (reactionScore === null) {
+                    scoreBytes = [0]; // None
+                } else {
+                    scoreBytes = [1, reactionScore]; // Some + u8
+                }
+                
+                // respond_to_combat(rider_response: Option<RiderResponse>, reaction_score: Option<u8>)
+                const callData = buildCallData(
+                    SELECTORS.respondToCombat,
+                    responseBytes,
+                    scoreBytes
+                );
+                
+                const result = await submitReviveCall(callData, 'respondToCombat');
+                
+                // Display narrative from contract event
+                if (result.narrative) {
+                    setNarrative(result.narrative);
+                }
+                
+                await loadGameState();
+                await handleTurnResult();
+                
+            } catch (err) {
+                console.error('Combat error:', err);
+                // If contract reverted, combat may already be resolved - refresh and continue
+                if (err.message?.includes('ContractReverted')) {
+                    await loadGameState();
+                }
+                showTurnActions();
+            } finally {
+                hide('game-loading');
+                state.combatInProgress = false;
+            }
+        }
+        
+        async function handleTurnResult() {
+            if (!state.game) {
+                // Victory (game removed from storage)
+                showGameOver(true);
+                return;
+            }
+            
+            if (state.game.isDead) {
+                // Death (game kept but marked dead)
+                showGameOver(false);
+                return;
+            }
+            
+            // Check for pending combat (only if not already handling combat)
+            if (state.game.pendingCombat && !state.combatInProgress) {
+                showCombatUI(state.game.pendingCombat);
+                return;
+            }
+            
+            // No combat pending - show turn actions
+            state.combatInProgress = false;
+            updateGameDisplay();
+            showTurnActions();
+        }
+        
+        async function deleteGame() {
+            try {
+                show('game-loading');
+                setText('game-loading', 'BUILDING TX...');
+                
+                // delete_game() - no args
+                const callData = buildCallData(SELECTORS.deleteGame);
+                
+                await submitReviveCall(callData, 'deleteGame');
+                
+                state.game = null;
+                $('btn-continue-game').disabled = true;
+                $('btn-delete-game').disabled = true;
+                showScreen('menu');
+            } catch (err) {
+                console.error('Delete error:', err);
+                showError('menu-error', 'Failed to delete game: ' + err.message);
+            } finally {
+                hide('game-loading');
+            }
+        }
+        
+        // GAME DISPLAY
+        function updateGameDisplay() {
+            if (!state.game) return;
+            
+            const g = state.game;
+            setText('stat-mileage', g.mileage);
+            setText('stat-food', g.food);
+            setText('stat-bullets', g.bullets);
+            setText('stat-clothing', g.clothing);
+            setText('stat-supplies', g.miscSupplies);
+            setText('stat-cash', '$' + g.cash);
+            
+            const turn = Math.min(g.turn, DATES.length - 1);
+            setText('game-date', `MONDAY ${DATES[turn]} 1847 | TURN ${g.turn + 1}/20`);
+            
+            $('btn-fort').disabled = !g.fortAvailable;
+        }
+        
+        function showTurnActions() {
+            hide('shooting-game');
+            hide('rider-actions');
+            hide('game-over');
+            show('turn-actions');
+        }
+        
+        function showRiderActions(appearHostile) {
+            hide('shooting-game');
+            hide('turn-actions');
+            hide('game-over');
+            show('rider-actions');
+            
+            // Update rider description
+            const riderText = appearHostile 
+                ? "RIDERS AHEAD! THEY DON'T LOOK FRIENDLY..."
+                : "RIDERS AHEAD! THEY LOOK PEACEFUL...";
+            setNarrative(riderText + "\n\nWHAT DO YOU WANT TO DO?");
+        }
+        
+        function showCombatUI(combat) {
+            // Prevent duplicate combat UI triggers
+            if (state.combatInProgress) {
+                return;
+            }
+            state.combatInProgress = true;
+            
+            if (combat.type === 'Riders') {
+                showRiderActions(combat.appearHostile);
+            } else {
+                // Bandits and Wild Animals require shooting
+                const message = combat.type === 'Bandits' 
+                    ? "BANDITS ATTACKING!\n\nGET READY TO SHOOT!"
+                    : "WILD ANIMALS ATTACKING!\n\nGET READY TO SHOOT!";
+                setNarrative(message);
+                state.pendingCombatType = combat.type;
+                startShootingGame();
+            }
+        }
+        
+        function showGameOver(isVictory = false) {
+            hide('shooting-game');
+            hide('turn-actions');
+            hide('rider-actions');
+            show('game-over');
+            // Narrative is already set from the GameOver event - don't overwrite
+        }
+        
+        // SHOOTING
+        function getRandomWord() {
+            return CONFIG.SHOOTING_WORDS[Math.floor(Math.random() * CONFIG.SHOOTING_WORDS.length)];
+        }
+        
+        function calculateReactionScore(timeMs) {
+            for (const [threshold, score] of Object.entries(CONFIG.TIMING)) {
+                if (timeMs < parseInt(threshold)) return score;
+            }
+            return 9;
+        }
+        
+        function startShootingGame() {
+            state.shootingWord = getRandomWord();
+            
+            hide('turn-actions');
+            hide('rider-actions');
+            show('shooting-game');
+            
+            const gameEl = $('shooting-game');
+            gameEl.classList.add('ready');
+            gameEl.classList.remove('active');
+            
+            setText('shooting-prompt', 'GET READY...');
+            setText('shooting-word', '');
+            setText('shooting-timer', '');
+            setText('shooting-result', '');
+            $('shooting-input').value = '';
+            $('shooting-input').disabled = true;
+            
+            // Random delay then show word
+            setTimeout(() => {
+                setText('shooting-prompt', 'TYPE NOW!');
+                setText('shooting-word', state.shootingWord);
+                $('shooting-input').disabled = false;
+                $('shooting-input').focus();
+                gameEl.classList.remove('ready');
+                gameEl.classList.add('active');
+                state.shootingStartTime = performance.now();
+                
+                // Update timer
+                const interval = setInterval(() => {
+                    if (!state.shootingStartTime) {
+                        clearInterval(interval);
+                        return;
+                    }
+                    const elapsed = (performance.now() - state.shootingStartTime) / 1000;
+                    setText('shooting-timer', elapsed.toFixed(2) + 's');
+                }, 50);
+                
+                $('shooting-input').dataset.interval = interval;
+                
+            }, 1000 + Math.random() * 1000);
+        }
+        
+        function handleShootingInput() {
+            const typed = $('shooting-input').value.toUpperCase();
+            
+            if (typed === state.shootingWord) {
+                const elapsed = performance.now() - state.shootingStartTime;
+                clearInterval(parseInt($('shooting-input').dataset.interval));
+                state.shootingStartTime = null;
+                
+                const reactionScore = calculateReactionScore(elapsed);
+                const skill = state.game?.shootingSkill || 3;
+                const skillBonus = skill - 1; // AceMarksman=0, ShakyKnees=4
+                const finalResult = Math.max(1, reactionScore - skillBonus);
+                
+                let resultText, resultClass;
+                if (finalResult <= 1) {
+                    resultText = 'PERFECT!';
+                    resultClass = 'shot-perfect';
+                } else if (finalResult <= 4) {
+                    resultText = 'GOOD SHOT!';
+                    resultClass = 'shot-good';
+                } else {
+                    resultText = 'MISSED!';
+                    resultClass = 'shot-miss';
+                }
+                
+                $('shooting-game').classList.remove('active');
+                setText('shooting-timer', `${(elapsed/1000).toFixed(2)}s → Score: ${reactionScore} - ${skillBonus} = ${finalResult}`);
+                $('shooting-result').textContent = resultText;
+                $('shooting-result').className = resultClass;
+                $('shooting-input').disabled = true;
+                
+                // Process after delay
+                setTimeout(() => processShootingResult(reactionScore), 1200);
+            }
+        }
+        
+        async function processShootingResult(reactionScore) {
+            hide('shooting-game');
+            
+            const action = state.pendingAction;
+            const combatType = state.pendingCombatType;
+            
+            // Prevent double processing
+            if (!action && !combatType) {
+                return;
+            }
+            
+            state.pendingAction = null;
+            state.pendingCombatType = null;
+            
+            if (action === 'hunt') {
+                await takeTurn('hunt', reactionScore);
+            } else if (action === 'attack' || action === 'circle') {
+                const response = action === 'attack' 
+                    ? { Attack: { reactionScore } }
+                    : { CircleWagons: { reactionScore } };
+                await respondToCombat(response, null);
+            } else if (combatType === 'Bandits' || combatType === 'WildAnimals') {
+                await respondToCombat(null, reactionScore);
+            }
+        }
+        
+        // EVENTS
+        function setupEventHandlers() {
+            // Menu
+            $('btn-new-game').onclick = () => {
+                showScreen('setup');
+                updateSetupTotals(); // Calculate initial totals
+            };
+            $('btn-continue-game').onclick = async () => {
+                state.combatInProgress = false;
+                await loadGameState();
+                if (state.game) {
+                    if (state.game.isDead) {
+                        // Game is over - show death screen with final state
+                        const turn = Math.min(state.game.turn, DATES.length - 1);
+                        setNarrative(`FINAL RESTING PLACE: MONDAY ${DATES[turn]} 1847\n\nTHE ${state.game.playerName.toUpperCase()} FAMILY'S JOURNEY ENDED HERE.\n\nMILES TRAVELED: ${state.game.mileage}\nFOOD: ${state.game.food} | BULLETS: ${state.game.bullets}\n\nTHEY DID NOT REACH OREGON.\n\nPRESS "PLAY AGAIN" TO TRY ONCE MORE.`);
+                        updateGameDisplay();
+                        showScreen('game');
+                        showGameOver(false);
+                    } else {
+                        updateGameDisplay();
+                        const turn = Math.min(state.game.turn, DATES.length - 1);
+                        setNarrative(`MONDAY ${DATES[turn]} 1847\n\nYOUR JOURNEY CONTINUES...`);
+                        showScreen('game');
+                        
+                        if (state.game.pendingCombat) {
+                            showCombatUI(state.game.pendingCombat);
+                        } else {
+                            showTurnActions();
+                        }
+                    }
+                }
+            };
+            $('btn-disconnect').onclick = disconnect;
+            $('btn-delete-game').onclick = async () => {
+                if (confirm('DELETE YOUR GAME? THIS CANNOT BE UNDONE.')) {
+                    await deleteGame();
+                }
+            };
+            
+            // Setup
+            $('btn-start-journey').onclick = startGame;
+            $('btn-back-menu').onclick = () => showScreen('menu');
+            
+            // Setup totals
+            ['input-oxen', 'input-food', 'input-ammo', 'input-clothing', 'input-misc'].forEach(id => {
+                $(id).oninput = updateSetupTotals;
+            });
+            
+            // Game actions
+            $('btn-continue').onclick = () => takeTurn('continue');
+            $('btn-hunt').onclick = () => {
+                if (state.game && state.game.bullets < 40) {
+                    showError('game-error', 'NEED 40 BULLETS TO HUNT');
+                    return;
+                }
+                state.pendingAction = 'hunt';
+                startShootingGame();
+            };
+            $('btn-fort').onclick = () => {
+                setText('fort-cash', '$' + (state.game?.cash || 0));
+                showScreen('fort');
+            };
+            
+            // Shooting input
+            $('shooting-input').oninput = handleShootingInput;
+            
+            // Rider buttons
+            document.querySelectorAll('.rider-btn').forEach(btn => {
+                btn.onclick = () => {
+                    const response = btn.dataset.response;
+                    
+                    if (response === 'attack' || response === 'circle') {
+                        state.pendingAction = response;
+                        state.pendingRiderResponse = response;
+                        startShootingGame();
+                    } else if (response === 'run') {
+                        respondToCombat({ Run: null }, null);
+                    } else {
+                        respondToCombat({ ContinuePast: null }, null);
+                    }
+                };
+            });
+            
+            // Fort
+            $('btn-fort-buy').onclick = async () => {
+                const food = parseInt($('fort-food').value) || 0;
+                const ammo = parseInt($('fort-ammo').value) || 0;
+                const clothing = parseInt($('fort-clothing').value) || 0;
+                const misc = parseInt($('fort-misc').value) || 0;
+                
+                const total = food + ammo + clothing + misc;
+                if (total > (state.game?.cash || 0)) {
+                    showError('fort-error', 'NOT ENOUGH CASH');
+                    return;
+                }
+                
+                const purchase = { food, ammunition: ammo, clothing, miscSupplies: misc };
+                showScreen('game');
+                await takeTurn('fort', null, purchase);
+                
+                // Reset fort inputs
+                $('fort-food').value = 0;
+                $('fort-ammo').value = 0;
+                $('fort-clothing').value = 0;
+                $('fort-misc').value = 0;
+            };
+            $('btn-fort-cancel').onclick = () => showScreen('game');
+            
+            // Game over
+            $('btn-play-again').onclick = () => showScreen('setup');
+            $('btn-to-menu').onclick = async () => {
+                await checkExistingGame();
+                showScreen('menu');
+            };
+            
+        }
+        
+        function updateSetupTotals() {
+            const oxen = parseInt($('input-oxen').value) || 0;
+            const food = parseInt($('input-food').value) || 0;
+            const ammo = parseInt($('input-ammo').value) || 0;
+            const clothing = parseInt($('input-clothing').value) || 0;
+            const misc = parseInt($('input-misc').value) || 0;
+            
+            const total = oxen + food + ammo + clothing + misc;
+            const remaining = 700 - total;
+            
+            setText('total-spent', '$' + total);
+            setText('cash-remaining', '$' + remaining);
+            $('cash-remaining').style.color = remaining < 0 ? 'var(--danger)' : '';
+        }
+        
+        // START
+        console.log('🎮 Oregon Trail: On-Chain Edition');
+        console.log('📋 Config:', CONFIG);
+        
+        setupEventHandlers();
+        console.log('✅ Event handlers ready');
+        
+        initApi().catch(err => {
+            console.error('❌ Fatal init error:', err);
+            showError('init-error', 'Fatal error: ' + err.message);
+        });
+    </script>
+</body>
+</html>
